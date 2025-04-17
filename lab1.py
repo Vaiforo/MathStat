@@ -16,7 +16,6 @@ numbers = [
 variation_series = sorted(numbers)
 print(variation_series)
 
-
 """2. Построить интервальный статистический ряд"""
 # нахождение размаха выборки
 X_min = min(numbers)
@@ -39,27 +38,26 @@ hist, bin_edges = np.histogram(numbers, bins)
 for i in range(len(hist)):
     print(f"{bin_edges[i]:.1f} - {bin_edges[i + 1]:.1f}: {hist[i]}")
 
-
 """3. По сгруппированным данным построить полигон и гистограмму"""
 
 # Расчет относительных частот
 relative_freq = hist / N
 
 # Середины интервалов для полигона
-mid_bins = (bin_edges[:-1] + bin_edges[1:])/2
+mid_bins = (bin_edges[:-1] + bin_edges[1:]) / 2
 
 # Построение графиков
-plt.figure(figsize=(12,5))
+plt.figure(figsize=(12, 5))
 
 # Полигон относительных частот
-plt.subplot(1,2,1)
+plt.subplot(1, 2, 1)
 plt.plot(mid_bins, relative_freq, 'bo-')
 plt.title('Полигон относительных частот')
 plt.xlabel('Середины интервалов')
 plt.ylabel('Относительная частота')
 
 # Гистограмма относительных частот
-plt.subplot(1,2,2)
+plt.subplot(1, 2, 2)
 plt.bar(bin_edges[:-1], relative_freq, width=h, align='edge',
         edgecolor='black', alpha=0.7)
 plt.title('Гистограмма относительных частот')
@@ -73,9 +71,9 @@ plt.show()
 """4. График эмпирической функции распределения"""
 # Сортировка данных и расчет накопленных частот
 x = np.sort(numbers)
-y = np.arange(1, len(x)+1)/len(x)
+y = np.arange(1, len(x) + 1) / len(x)
 
-plt.figure(figsize=(10,5))
+plt.figure(figsize=(10, 5))
 plt.step(x, y, where='post')
 plt.title('Эмпирическая функция распределения')
 plt.xlabel('x')
@@ -119,20 +117,117 @@ mu, sigma = mean, np.sqrt(var)
 print(f"Параметры: μ={mu:.2f}, σ={sigma:.2f}")
 
 # Теоретические кривые
-plt.figure(figsize=(12,5))
+plt.figure(figsize=(12, 5))
 
 # Гистограмма с теоретической плотностью
-plt.subplot(1,2,1)
+plt.subplot(1, 2, 1)
 x_range = np.linspace(X_min, X_max, 100)
 plt.bar(bin_edges[:-1], relative_freq, width=h, align='edge',
         edgecolor='black', alpha=0.7)
-plt.plot(x_range, norm.pdf(x_range, mu, sigma)*h, 'r-', lw=2)
+plt.plot(x_range, norm.pdf(x_range, mu, sigma) * h, 'r-', lw=2)
 plt.title('Теоретическая плотность и гистограмма')
 
 # ЭФР с теоретической функцией
-plt.subplot(1,2,2)
+plt.subplot(1, 2, 2)
 plt.step(x, y, where='post')
 plt.plot(x_range, norm.cdf(x_range, mu, sigma), 'r-', lw=2)
 plt.title('Теоретическая ФР и ЭФР')
 plt.tight_layout()
 plt.show()
+
+"""9. Проверка правила трёх сигм"""
+three_sigma_low = mean - 3 * sigma
+three_sigma_high = mean + 3 * sigma
+within_3sigma = len([x for x in numbers if three_sigma_low <= x <= three_sigma_high])
+percentage = within_3sigma / N * 100
+
+print(f'''
+Правило трёх сигм:
+Границы: [{three_sigma_low:.2f}, {three_sigma_high:.2f}]
+Данных в пределах: {within_3sigma}/{N} ({percentage:.2f}%)
+Теоретическое значение: 99.73%
+''')
+
+"""10. Критерий согласия Пирсона"""
+from scipy.stats import chi2
+
+# Теоретические частоты для нормального распределения
+theoretical_probs = [norm.cdf(bin_edges[i + 1], mu, sigma) -
+                     norm.cdf(bin_edges[i], mu, sigma)
+                     for i in range(len(bin_edges) - 1)]
+
+theoretical_freq = np.array(theoretical_probs) * N
+
+# Объединение интервалов с частотой <5
+observed = hist.copy()
+expected = theoretical_freq.copy()
+
+# Расчет критерия
+chi2_stat = np.sum((observed - expected) ** 2 / expected)
+dof = len(observed) - 3  # степени свободы (k - r - 1)
+p_value = 1 - chi2.cdf(chi2_stat, dof)
+
+print(f'''
+Критерий Пирсона:
+Хи-квадрат = {chi2_stat:.3f}
+Степени свободы = {dof}
+p-value = {p_value:.4f}
+Гипотеза {"не отвергается" if p_value > 0.05 else "отвергается"}
+''')
+
+"""11. Доверительные интервалы"""
+from scipy.stats import t, chi2
+
+gamma = 0.95
+alpha = 1 - gamma
+n = N
+
+# Для среднего
+t_crit = t.ppf(1 - alpha / 2, df=n - 1)
+mean_ci_low = mean - t_crit * sigma / np.sqrt(n)
+mean_ci_high = mean + t_crit * sigma / np.sqrt(n)
+
+# Для СКО
+chi2_low = chi2.ppf(1 - alpha / 2, df=n - 1)
+chi2_high = chi2.ppf(alpha / 2, df=n - 1)
+sigma_ci_low = np.sqrt((n - 1) * var / chi2_low)
+sigma_ci_high = np.sqrt((n - 1) * var / chi2_high)
+
+print(f'''
+Доверительные интервалы (γ={gamma}):
+Среднее: [{mean_ci_low:.3f}, {mean_ci_high:.3f}]
+СКО: [{sigma_ci_low:.3f}, {sigma_ci_high:.3f}]
+''')
+
+"""12. Критерий Колмогорова"""
+from scipy.stats import kstest
+
+# Эмпирическая F(x) vs теоретическая F(x)
+D, p_kolmogorov = kstest(numbers, 'norm', args=(mu, sigma))
+
+print(f'''
+Критерий Колмогорова:
+D = {D:.4f}
+Критическое значение (α=0.05): {1.36 / np.sqrt(N):.4f}
+p-value = {p_kolmogorov:.4f}
+Гипотеза {"не отвергается" if p_kolmogorov > 0.05 else "отвергается"}
+''')
+
+
+print(f'''
+8. Параметры распределения: μ = {mu:.2f}, σ = {sigma:.2f}
+
+9. Правило трёх сигм: 
+   Границы: [{three_sigma_low:.2f}, {three_sigma_high:.2f}]
+   Попало: {within_3sigma} из {N} ({percentage:.1f}%)
+
+10. Критерий Пирсона: 
+    χ² = {chi2_stat:.2f}, df = {dof}, крит.значение = {chi2.ppf(0.95, dof):.2f}, p = {p_value:.4f}
+
+11. Доверительные интервалы (γ=0.95):
+    Среднее: [{mean_ci_low:.2f}, {mean_ci_high:.2f}]
+    СКО: [{sigma_ci_low:.2f}, {sigma_ci_high:.2f}]
+
+12. Критерий Колмогорова: 
+    D = {D:.4f}, крит.значение = {1.36/np.sqrt(N):.4f}, p = {p_kolmogorov:.4f}
+''')
